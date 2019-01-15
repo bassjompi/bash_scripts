@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#### This script is intended to check the status of all filesystems mounted in the machine, trying to remount them automatically if they are not already and generating a PD alert in case the mounting is not possible
+#### Triggered through a crontab job for user root
+#### Juan Pablo Yanez Camacho  October, 2018 . Accolade inc 
+
+file_systems=$(cat /etc/fstab | grep gid | awk '{ print $2 }')  ###checks all the Fiesystems that should be mounted in FStab
+today=$(date)
+
+for fs in $file_systems
+do
+	if ! mountpoint -q "$fs"    ####if one of those FS is not mounted, checks if its a critical one or low level alert one
+	then
+	    if [ $fs = "/app/prod_cifs" ]  ###critical FS, tries to mount it 5 times if not generates a high alert
+	    then
+                n=0
+        	until [ $n -ge 5 ]
+        	do
+                    mount "$fs" && echo "$(date +"%R") Filesystem ${fs} was automatically mounted" >> "/var/log/mount_$(date +"%b_%d_%Y").log" && exit 1
+                    n=$[$n+1]
+                    sleep 15
+        	done
+        	/opt/Data-Operations/PagerDuty/publishAlerts.py -u high -d "Unmounted fs in talend.accint.io" -s "data-gateway" -e prod -i ${fs}   -m "Filesystem ${fs} is not mounted on talend.accint.io"
+	   
+
+	     else
+	        n=0     ### non critical FS, tries to mount it 5 times and if not successfull generates a low level alert
+                until [ $n -ge 5 ]
+                do
+                    mount "$fs" && echo "$(date +"%R") Filesystem ${fs} was automatically mounted" >> "/var/log/mount_$(date +"%b_%d_%Y").log" && exit 1
+                    n=$[$n+1]
+                    sleep 15
+                done
+                /opt/Data-Operations/PagerDuty/publishAlerts.py -u low -d "Unmounted fs in talend.accint.io" -s "data-gateway" -e prod -i ${fs}   -m "Filesystem ${fs} is not mounted on talend.accint.io"
+
+	    fi
+	fi
+		
+done
