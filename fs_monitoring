@@ -1,0 +1,7 @@
+#!/bin/sh
+percentage=$(df /var/log | awk '{ print $5 }' | tail -n 1 | tr -d '%')
+node=$(hostname)
+if [ $percentage -ge 98 ]
+then
+	/opt/Data-Operations/PagerDuty/publishAlerts.py -u high -d "File system almost full in hadoop cluster" -s "data-gateway" -e prod -i Hadoop-Prod   -m "The Filesystem /var/log has 98% or more of utilization in the machine ${node}" 
+fi
